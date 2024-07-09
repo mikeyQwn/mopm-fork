@@ -1,7 +1,7 @@
 use std::iter;
 
 use aes_gcm::{
-    aead::{Aead, AeadMut, OsRng},
+    aead::{Aead, OsRng},
     AeadCore, KeyInit, KeySizeUser,
 };
 use thiserror::Error;
