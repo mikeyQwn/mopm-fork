@@ -103,15 +103,18 @@ where
 
         PasswordManagerOptions::<T, B> {
             hashed_key: self.hashed_key,
-            encryptor: encryptor,
+            encryptor,
             body: self.body,
         }
     }
 
     pub fn build(self) -> PasswordManager<E> {
-        PasswordManager {
-            kv: HashMap::new(),
-            encryptor: self.encryptor,
+        match self.body {
+            None => PasswordManager {
+                kv: HashMap::new(),
+                encryptor: self.encryptor,
+            },
+            Some(_reader) => unimplemented!(),
         }
     }
 }
