@@ -15,13 +15,9 @@ pub enum EncryprtorError {
 }
 
 pub trait Encryprtor {
-    fn encrypt<T>(&mut self, data: T) -> Result<String, EncryprtorError>
-    where
-        T: AsRef<[u8]>;
+    fn encrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError>;
 
-    fn decrypt<T>(&mut self, data: T) -> Result<String, EncryprtorError>
-    where
-        T: AsRef<[u8]>;
+    fn decrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError>;
 }
 
 pub struct AESEncryptor {
@@ -56,10 +52,7 @@ impl AESEncryptor {
 }
 
 impl Encryprtor for AESEncryptor {
-    fn encrypt<T>(&mut self, data: T) -> Result<String, EncryprtorError>
-    where
-        T: AsRef<[u8]>,
-    {
+    fn encrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError> {
         let nonce = aes_gcm::Aes256Gcm::generate_nonce(OsRng);
         let encrypted_bytes = self
             .cipher
@@ -68,17 +61,12 @@ impl Encryprtor for AESEncryptor {
 
         let ciphertext = nonce.into_iter().chain(encrypted_bytes.into_iter());
 
-        Ok(hex::encode(ciphertext.collect::<Vec<_>>()))
+        Ok(ciphertext.collect::<Vec<_>>().into_boxed_slice())
     }
 
-    fn decrypt<T>(&mut self, data: T) -> Result<String, EncryprtorError>
-    where
-        T: AsRef<[u8]>,
-    {
+    fn decrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError> {
         const NONCE_LENGTH: usize = 12;
 
-        let data =
-            hex::decode(data).map_err(|err| EncryprtorError::DecryptionError(err.to_string()))?;
         if data.len() < NONCE_LENGTH {
             return Err(EncryprtorError::DecryptionError(
                 "invalid nonce size".to_string(),
@@ -86,13 +74,11 @@ impl Encryprtor for AESEncryptor {
         };
 
         let (nonce, ciphertext) = data.split_at(NONCE_LENGTH);
-        let plaintext = self
+        Ok(self
             .cipher
             .decrypt(nonce.into(), ciphertext)
-            .map_err(|err| EncryprtorError::DecryptionError(err.to_string()))?;
-
-        String::from_utf8(plaintext)
-            .map_err(|err| EncryprtorError::DecryptionError(err.to_string()))
+            .map_err(|err| EncryprtorError::DecryptionError(err.to_string()))?
+            .into_boxed_slice())
     }
 }
 
@@ -113,15 +99,24 @@ mod tests {
         let mut encryptor = AESEncryptor::new("foobar");
 
         let data = "foo";
-        let encrypted = encryptor.encrypt(data).unwrap();
-        assert_eq!(Ok(data.to_owned()), encryptor.decrypt(encrypted));
+        let encrypted = encryptor.encrypt(data.as_ref()).unwrap();
+        assert_eq!(
+            Ok(data.to_owned()),
+            String::from_utf8(encryptor.decrypt(encrypted.as_ref()).unwrap().into())
+        );
 
         let data = "";
-        let encrypted = encryptor.encrypt(data).unwrap();
-        assert_eq!(Ok(data.to_owned()), encryptor.decrypt(encrypted));
+        let encrypted = encryptor.encrypt(data.as_ref()).unwrap();
+        assert_eq!(
+            Ok(data.to_owned()),
+            String::from_utf8(encryptor.decrypt(encrypted.as_ref()).unwrap().into())
+        );
 
         let data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let encrypted = encryptor.encrypt(data).unwrap();
-        assert_eq!(Ok(data.to_owned()), encryptor.decrypt(encrypted));
+        let encrypted = encryptor.encrypt(data.as_ref()).unwrap();
+        assert_eq!(
+            Ok(data.to_owned()),
+            String::from_utf8(encryptor.decrypt(encrypted.as_ref()).unwrap().into())
+        );
     }
 }

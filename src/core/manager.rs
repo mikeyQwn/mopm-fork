@@ -30,7 +30,7 @@ pub struct PasswordManager<T>
 where
     T: Encryprtor,
 {
-    kv: HashMap<String, String>,
+    kv: HashMap<String, Box<[u8]>>,
     encryptor: T,
 }
 
@@ -44,13 +44,17 @@ where
             .get(key)
             .ok_or(PasswordManagerError::NoPasswordFound)?;
 
-        self.encryptor
-            .decrypt(encrypted_password)
-            .map_err(PasswordManagerError::from)
+        String::from_utf8(
+            self.encryptor
+                .decrypt(encrypted_password.as_ref())
+                .map_err(PasswordManagerError::from)?
+                .to_vec(),
+        )
+        .or(Err(PasswordManagerError::NoPasswordFound))
     }
 
     pub fn store_password(&mut self, key: String, value: &str) -> Result<(), PasswordManagerError> {
-        let encrypted_password = self.encryptor.encrypt(value)?;
+        let encrypted_password = self.encryptor.encrypt(value.as_ref())?;
 
         self.kv.insert(key.to_string(), encrypted_password);
         Ok(())
