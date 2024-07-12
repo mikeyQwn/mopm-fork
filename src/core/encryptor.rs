@@ -20,6 +20,24 @@ pub trait Encryprtor {
     fn decrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError>;
 }
 
+pub struct BlankEncryptor;
+
+impl BlankEncryptor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Encryprtor for BlankEncryptor {
+    fn encrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError> {
+        Ok(data.into())
+    }
+
+    fn decrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError> {
+        Ok(data.into())
+    }
+}
+
 pub struct AESEncryptor {
     cipher: aes_gcm::Aes256Gcm,
 }
