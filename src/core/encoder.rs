@@ -42,19 +42,7 @@ impl Header {
             return Err(EncoderError::InvalidHeaderSize);
         }
 
-        let version = Version::from_u8(buf[0]).ok_or(EncoderError::HeaderParseError)?;
-        let hasher_id = buf[1];
-        let encoder_id = buf[2];
-        let body_sha = buf[3..]
-            .try_into()
-            .or(Err(EncoderError::HeaderParseError))?;
-
-        Ok(Self {
-            version,
-            hasher_id,
-            encoder_id,
-            body_sha,
-        })
+        Self::try_from_bytes(buf)
     }
 
     pub fn try_from_bytes(bytes: [u8; std::mem::size_of::<Self>()]) -> Result<Self, EncoderError> {

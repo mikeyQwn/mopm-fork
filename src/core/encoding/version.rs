@@ -24,6 +24,7 @@ impl Version {
 mod tests {
     use super::*;
 
+    #[test]
     pub fn sanity_check() {
         assert_eq!(std::mem::size_of::<Version>(), 1);
     }
