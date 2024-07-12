@@ -33,8 +33,10 @@ pub struct Header {
 }
 
 impl Header {
+    const SIZE: usize = std::mem::size_of::<Self>();
+
     pub fn try_from_reader(r: &mut impl Read) -> Result<Self, EncoderError> {
-        let mut buf = [0; std::mem::size_of::<Self>()];
+        let mut buf = [0; Self::SIZE];
         let n = r
             .read(&mut buf)
             .or_else(|err| Err(EncoderError::ReaderError(err)))?;
@@ -45,7 +47,7 @@ impl Header {
         Self::try_from_bytes(buf)
     }
 
-    pub fn try_from_bytes(bytes: [u8; std::mem::size_of::<Self>()]) -> Result<Self, EncoderError> {
+    pub fn try_from_bytes(bytes: [u8; Self::SIZE]) -> Result<Self, EncoderError> {
         let version = Version::from_u8(bytes[0]).ok_or(EncoderError::HeaderParseError)?;
         let hasher_id = bytes[1];
         let encoder_id = bytes[2];
@@ -61,15 +63,12 @@ impl Header {
         })
     }
 
-    pub fn to_bytes(&self) -> [u8; std::mem::size_of::<Self>()] {
-        let mut res = [0; std::mem::size_of::<Self>()];
+    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
+        let mut res = [0; Self::SIZE];
         res[0] = Version::current_version().to_u8();
         res[1] = self.hasher_id;
         res[2] = self.encoder_id;
-        res.iter_mut()
-            .skip(3)
-            .zip(self.body_sha)
-            .for_each(|(v, exp)| *v = exp);
+        res[3..].copy_from_slice(&self.body_sha);
         res
     }
 }
