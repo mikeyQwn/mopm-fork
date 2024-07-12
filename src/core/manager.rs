@@ -62,7 +62,7 @@ where
     E: Encryprtor,
     B: Read,
 {
-    hashed_key: String,
+    hashed_key: Box<[u8]>,
 
     encryptor: E,
     body: Option<B>,
@@ -78,7 +78,7 @@ impl PasswordManagerOptions<AESEncryptor, Cursor<Vec<u8>>> {
         T: AsRef<[u8]>,
         U: Hasher,
     {
-        let hashed_key = hasher.hash(key);
+        let hashed_key = hasher.hash(key.as_ref());
 
         Self {
             hashed_key: hashed_key.clone(),
@@ -97,9 +97,9 @@ where
     pub fn with_encryptor<T, F>(self, f: F) -> PasswordManagerOptions<T, B>
     where
         T: Encryprtor,
-        F: FnOnce(&str) -> T,
+        F: FnOnce(&[u8]) -> T,
     {
-        let encryptor = f(self.hashed_key.as_str());
+        let encryptor = f(&self.hashed_key);
 
         PasswordManagerOptions::<T, B> {
             hashed_key: self.hashed_key,
