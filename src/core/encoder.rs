@@ -75,7 +75,7 @@ impl Header {
 
 #[derive(Debug, PartialEq)]
 pub struct Body {
-    kv: HashMap<String, String>,
+    kv: HashMap<String, Box<[u8]>>,
 }
 
 impl Body {
@@ -89,7 +89,7 @@ impl Body {
                 }
                 acc.extend(k.as_bytes());
                 acc.push(SEPARATOR_KV);
-                acc.extend(v.as_bytes());
+                acc.extend(v.iter());
                 acc
             })
     }
@@ -109,9 +109,7 @@ impl Body {
                     let v = lr
                         .next()
                         .ok_or(EncoderError::BodyParseError)
-                        .and_then(|v| {
-                            String::from_utf8(v.to_vec()).or(Err(EncoderError::BodyParseError))
-                        })?;
+                        .map(|v| v.to_vec().into_boxed_slice())?;
                     acc.insert(k, v);
                     Ok(acc)
                 })?;
@@ -126,9 +124,18 @@ mod tests {
     #[test]
     pub fn test_body() {
         let mut kv = HashMap::new();
-        kv.insert("foo".to_string(), "bar".to_string());
-        kv.insert("".to_string(), "".to_string());
-        kv.insert("ƥƫƯȭ".to_string(), "ƥḌ ".to_string());
+        kv.insert(
+            "foo".to_string(),
+            "bar".bytes().collect::<Vec<u8>>().into_boxed_slice(),
+        );
+        kv.insert(
+            "".to_string(),
+            "".bytes().collect::<Vec<u8>>().into_boxed_slice(),
+        );
+        kv.insert(
+            "ƥƫƯȭ".to_string(),
+            "ƥḌ ".bytes().collect::<Vec<u8>>().into_boxed_slice(),
+        );
         let data = Body { kv };
         assert_eq!(data, Body::try_from_bytes(data.to_bytes()).unwrap());
         assert_eq!(data.kv.len(), 3);
@@ -136,7 +143,7 @@ mod tests {
 
     #[test]
     pub fn test_header() {
-        let mut a = Header {
+        let a = Header {
             version: Version::V0_0,
             hasher_id: 20,
             encoder_id: 100,
