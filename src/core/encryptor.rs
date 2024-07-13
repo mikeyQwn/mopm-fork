@@ -20,6 +20,17 @@ pub trait Encryprtor {
     fn decrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError>;
 }
 
+pub struct DynamicEncryptor(pub u8, pub Box<dyn Encryprtor>);
+impl Encryprtor for DynamicEncryptor {
+    fn encrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError> {
+        self.1.encrypt(data)
+    }
+
+    fn decrypt(&mut self, data: &[u8]) -> Result<Box<[u8]>, EncryprtorError> {
+        self.1.decrypt(data)
+    }
+}
+
 pub struct BlankEncryptor;
 
 impl BlankEncryptor {

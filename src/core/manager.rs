@@ -9,6 +9,7 @@ use thiserror::Error;
 use super::{
     encryptor::{AESEncryptor, Encryprtor, EncryprtorError},
     hasher::{Hasher, Sha256Hasher},
+    identifiers::Identifiable,
 };
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -30,7 +31,7 @@ pub struct PasswordManager<T>
 where
     T: Encryprtor,
 {
-    kv: HashMap<String, Box<[u8]>>,
+    pub(in crate::core) kv: HashMap<String, Box<[u8]>>,
     encryptor: T,
 }
 
@@ -38,6 +39,10 @@ impl<T> PasswordManager<T>
 where
     T: Encryprtor,
 {
+    pub fn from_raw_parts(kv: HashMap<String, Box<[u8]>>, encryptor: T) -> Self {
+        Self { kv, encryptor }
+    }
+
     pub fn get_password(&mut self, key: &str) -> Result<String, PasswordManagerError> {
         let encrypted_password = self
             .kv
@@ -59,67 +64,12 @@ where
         self.kv.insert(key.to_string(), encrypted_password);
         Ok(())
     }
-}
 
-pub struct PasswordManagerOptions<E, B>
-where
-    E: Encryprtor,
-    B: Read,
-{
-    hashed_key: Box<[u8]>,
-
-    encryptor: E,
-    body: Option<B>,
-}
-
-impl PasswordManagerOptions<AESEncryptor, Cursor<Vec<u8>>> {
-    pub fn new<T: AsRef<[u8]>>(key: T) -> Self {
-        Self::new_with_hasher(key, Sha256Hasher::new().borrow_mut())
-    }
-
-    pub fn new_with_hasher<T, U>(key: T, hasher: &mut U) -> Self
+    pub fn encryptor_id(&self) -> u8
     where
-        T: AsRef<[u8]>,
-        U: Hasher,
+        T: Identifiable,
     {
-        let hashed_key = hasher.hash(key.as_ref());
-
-        Self {
-            hashed_key: hashed_key.clone(),
-
-            encryptor: AESEncryptor::new(hashed_key),
-            body: None,
-        }
-    }
-}
-
-impl<E, B> PasswordManagerOptions<E, B>
-where
-    E: Encryprtor,
-    B: Read,
-{
-    pub fn with_encryptor<T, F>(self, f: F) -> PasswordManagerOptions<T, B>
-    where
-        T: Encryprtor,
-        F: FnOnce(&[u8]) -> T,
-    {
-        let encryptor = f(&self.hashed_key);
-
-        PasswordManagerOptions::<T, B> {
-            hashed_key: self.hashed_key,
-            encryptor,
-            body: self.body,
-        }
-    }
-
-    pub fn build(self) -> PasswordManager<E> {
-        match self.body {
-            None => PasswordManager {
-                kv: HashMap::new(),
-                encryptor: self.encryptor,
-            },
-            Some(_reader) => unimplemented!(),
-        }
+        self.encryptor.id()
     }
 }
 
@@ -143,21 +93,5 @@ mod tests {
             pm.get_password("bar"),
             Err(PasswordManagerError::NoPasswordFound)
         );
-    }
-
-    #[test]
-    fn test_builder() {
-        let key = "Hello world!".to_string();
-        let pm = PasswordManagerOptions::new(&key)
-            .with_encryptor(|key| AESEncryptor::new(key))
-            .build();
-
-        match pm {
-            PasswordManager {
-                kv: v,
-                encryptor: _,
-            } if v.len() == 0 => {}
-            _ => panic!("Password manager built incorrectly"),
-        }
     }
 }

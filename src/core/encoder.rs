@@ -1,14 +1,19 @@
 use std::{
     collections::HashMap,
-    io::{self, Read},
+    io::{self, Read, Write},
 };
 
 use thiserror::Error;
 
-use super::encoding::version::Version;
+use super::{
+    encoding::version::Version,
+    encryptor::{DynamicEncryptor, Encryprtor},
+    identifiers::{encryptor_from_id, Identifiable},
+    manager::PasswordManager,
+};
 
 #[derive(Error, Debug)]
-enum EncoderError {
+pub enum EncoderError {
     #[error("cannot parse the body")]
     BodyParseError,
     #[error("header size is not correct")]
@@ -17,6 +22,8 @@ enum EncoderError {
     ReaderError(io::Error),
     #[error("invalid header format")]
     HeaderParseError,
+    #[error("unsupported encryptor version")]
+    UnsupportedEncryptorVersionError,
 }
 
 const SEPARATOR_KV: u8 = 0;
@@ -24,11 +31,39 @@ const SEPARATOR_ENTRY: u8 = 1;
 
 pub struct Encoder {}
 
+impl Encoder {
+    pub fn decode(
+        key: &[u8],
+        reader: &mut impl Read,
+    ) -> Result<PasswordManager<DynamicEncryptor>, EncoderError> {
+        let header = Header::try_from_reader(reader)?;
+        let encryptor = encryptor_from_id(header.encryptor_id, key)
+            .ok_or(EncoderError::UnsupportedEncryptorVersionError)?;
+
+        Ok(PasswordManager::from_raw_parts(
+            HashMap::new(),
+            DynamicEncryptor(header.encryptor_id, encryptor),
+        ))
+    }
+
+    pub fn encode<T>(w: &mut impl Write, pm: &PasswordManager<T>)
+    where
+        T: Encryprtor + Identifiable,
+    {
+        let header = Header {
+            version: Version::current_version(),
+            encryptor_id: pm.encryptor_id(),
+            body_sha: [0; 32],
+        };
+        let bytes = header.to_bytes();
+        let _ = w.write(&bytes);
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Header {
     version: Version,
-    hasher_id: u8,
-    encoder_id: u8,
+    encryptor_id: u8,
     body_sha: [u8; 32],
 }
 
@@ -46,19 +81,16 @@ impl Header {
 
         Self::try_from_bytes(buf)
     }
-
     pub fn try_from_bytes(bytes: [u8; Self::SIZE]) -> Result<Self, EncoderError> {
         let version = Version::from_u8(bytes[0]).ok_or(EncoderError::HeaderParseError)?;
-        let hasher_id = bytes[1];
-        let encoder_id = bytes[2];
-        let body_sha = bytes[3..]
+        let encoder_id = bytes[1];
+        let body_sha = bytes[2..]
             .try_into()
             .or(Err(EncoderError::HeaderParseError))?;
 
         Ok(Self {
             version,
-            hasher_id,
-            encoder_id,
+            encryptor_id: encoder_id,
             body_sha,
         })
     }
@@ -66,9 +98,8 @@ impl Header {
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         let mut res = [0; Self::SIZE];
         res[0] = Version::current_version().to_u8();
-        res[1] = self.hasher_id;
-        res[2] = self.encoder_id;
-        res[3..].copy_from_slice(&self.body_sha);
+        res[1] = self.encryptor_id;
+        res[2..].copy_from_slice(&self.body_sha);
         res
     }
 }
@@ -119,6 +150,10 @@ impl Body {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
+    use crate::core::encryptor::{AESEncryptor, BlankEncryptor};
+
     use super::*;
 
     #[test]
@@ -145,8 +180,7 @@ mod tests {
     pub fn test_header() {
         let a = Header {
             version: Version::V0_0,
-            hasher_id: 20,
-            encoder_id: 100,
+            encryptor_id: 100,
             body_sha: [1; 32],
         };
 
@@ -154,5 +188,15 @@ mod tests {
         let b = Header::try_from_bytes(bytes).unwrap();
 
         assert_eq!(a, b)
+    }
+
+    #[test]
+    pub fn test_encoder() {
+        let pm = PasswordManager::from_raw_parts(HashMap::new(), AESEncryptor::new("foobar"));
+        let mut v = Vec::new();
+        Encoder::encode(&mut v, &pm);
+        let mut c = Cursor::new(v);
+        let pm2 = Encoder::decode(b"foobar", &mut c).unwrap();
+        assert_eq!(pm.encryptor_id(), pm2.encryptor_id())
     }
 }

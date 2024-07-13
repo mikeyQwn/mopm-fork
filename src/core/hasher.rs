@@ -3,21 +3,6 @@ use sha2::Digest;
 pub trait Hasher {
     fn hash(&mut self, data: &[u8]) -> Box<[u8]>;
 }
-
-pub struct BlankHasher;
-
-impl BlankHasher {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Hasher for BlankHasher {
-    fn hash(&mut self, data: &[u8]) -> Box<[u8]> {
-        data.to_vec().into_boxed_slice()
-    }
-}
-
 pub struct Sha256Hasher {}
 
 impl Sha256Hasher {
