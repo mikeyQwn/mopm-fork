@@ -32,7 +32,7 @@ where
     T: Encryprtor,
 {
     pub(in crate::core) kv: HashMap<String, Box<[u8]>>,
-    encryptor: T,
+    pub(in crate::core) encryptor: T,
 }
 
 impl<T> PasswordManager<T>
@@ -63,13 +63,6 @@ where
 
         self.kv.insert(key.to_string(), encrypted_password);
         Ok(())
-    }
-
-    pub fn encryptor_id(&self) -> u8
-    where
-        T: Identifiable,
-    {
-        self.encryptor.id()
     }
 }
 

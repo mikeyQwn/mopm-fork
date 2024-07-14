@@ -8,6 +8,7 @@ use thiserror::Error;
 use super::{
     encoding::version::Version,
     encryptor::{DynamicEncryptor, Encryprtor},
+    hasher::{Hasher, Sha256Hasher},
     identifiers::{encryptor_from_id, Identifiable},
     manager::PasswordManager,
 };
@@ -24,10 +25,12 @@ pub enum EncoderError {
     HeaderParseError,
     #[error("unsupported encryptor version")]
     UnsupportedEncryptorVersionError,
+    #[error("invalid key")]
+    IvalidKeyError,
 }
 
-const SEPARATOR_KV: u8 = 0;
-const SEPARATOR_ENTRY: u8 = 1;
+const SEPARATOR_KV: u8 = 1;
+const SEPARATOR_ENTRY: u8 = 2;
 
 pub struct Encoder {}
 
@@ -37,26 +40,47 @@ impl Encoder {
         reader: &mut impl Read,
     ) -> Result<PasswordManager<DynamicEncryptor>, EncoderError> {
         let header = Header::try_from_reader(reader)?;
-        let encryptor = encryptor_from_id(header.encryptor_id, key)
+        let mut encryptor = encryptor_from_id(header.encryptor_id, key)
             .ok_or(EncoderError::UnsupportedEncryptorVersionError)?;
 
+        let mut buf = Vec::new();
+        let _ = reader.read_to_end(&mut buf).unwrap();
+        let body_decrypted = encryptor.decrypt(&buf).unwrap();
+
+        if header
+            .body_sha
+            .iter()
+            .ne(Sha256Hasher::new().hash(&body_decrypted).iter())
+        {
+            return Err(EncoderError::IvalidKeyError);
+        };
+
+        let kv = Body::try_from_bytes(body_decrypted.as_ref()).unwrap();
+
         Ok(PasswordManager::from_raw_parts(
-            HashMap::new(),
+            kv,
             DynamicEncryptor(header.encryptor_id, encryptor),
         ))
     }
 
-    pub fn encode<T>(w: &mut impl Write, pm: &PasswordManager<T>)
+    pub fn encode<T>(w: &mut impl Write, pm: &mut PasswordManager<T>)
     where
         T: Encryprtor + Identifiable,
     {
+        let body_bytes = Body::to_bytes(&pm.kv);
+        let body_sha = Sha256Hasher::new().hash(&body_bytes);
+
+        let body_encrypted = pm.encryptor.encrypt(&body_bytes).unwrap();
+
         let header = Header {
             version: Version::current_version(),
-            encryptor_id: pm.encryptor_id(),
-            body_sha: [0; 32],
+            encryptor_id: pm.encryptor.id(),
+            body_sha: body_sha[..].try_into().unwrap(),
         };
+
         let bytes = header.to_bytes();
         let _ = w.write(&bytes);
+        let _ = w.write(&body_encrypted);
     }
 }
 
@@ -110,9 +134,8 @@ pub struct Body {
 }
 
 impl Body {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.kv
-            .iter()
+    pub fn to_bytes(kv: &HashMap<String, Box<[u8]>>) -> Vec<u8> {
+        kv.iter()
             .enumerate()
             .fold(Vec::new(), |mut acc, (i, (k, v))| {
                 if i != 0 {
@@ -125,7 +148,10 @@ impl Body {
             })
     }
 
-    pub fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, EncoderError> {
+    pub fn try_from_bytes(bytes: &[u8]) -> Result<HashMap<String, Box<[u8]>>, EncoderError> {
+        if bytes.is_empty() {
+            return Ok(HashMap::new());
+        }
         let kv =
             bytes
                 .split(|v| *v == SEPARATOR_ENTRY)
@@ -144,7 +170,7 @@ impl Body {
                     acc.insert(k, v);
                     Ok(acc)
                 })?;
-        Ok(Self { kv })
+        Ok(kv)
     }
 }
 
@@ -171,9 +197,11 @@ mod tests {
             "ƥƫƯȭ".to_string(),
             "ƥḌ ".bytes().collect::<Vec<u8>>().into_boxed_slice(),
         );
-        let data = Body { kv };
-        assert_eq!(data, Body::try_from_bytes(data.to_bytes()).unwrap());
-        assert_eq!(data.kv.len(), 3);
+        assert_eq!(
+            kv,
+            Body::try_from_bytes(Body::to_bytes(&kv).as_ref()).unwrap()
+        );
+        assert_eq!(kv.len(), 3);
     }
 
     #[test]
@@ -192,11 +220,16 @@ mod tests {
 
     #[test]
     pub fn test_encoder() {
-        let pm = PasswordManager::from_raw_parts(HashMap::new(), AESEncryptor::new("foobar"));
+        let mut pm = PasswordManager::from_raw_parts(HashMap::new(), AESEncryptor::new("foobar"));
+        let _ = pm.store_password("foo".to_string(), "bar");
+        let _ = pm.store_password("foo2".to_string(), "baz");
         let mut v = Vec::new();
-        Encoder::encode(&mut v, &pm);
+        Encoder::encode(&mut v, &mut pm);
         let mut c = Cursor::new(v);
         let pm2 = Encoder::decode(b"foobar", &mut c).unwrap();
-        assert_eq!(pm.encryptor_id(), pm2.encryptor_id())
+        assert_eq!(pm.encryptor.id(), pm2.encryptor.id());
+        assert_eq!(pm.kv, pm2.kv);
+
+        assert_eq!(pm.get_password("foo2"), Ok("baz".to_string()))
     }
 }
