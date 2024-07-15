@@ -1,3 +1,10 @@
-mod core;
+use storage::storage::Storage;
 
-fn main() {}
+mod core;
+mod storage;
+
+fn main() {
+    Storage::init().unwrap();
+
+    let _ = Storage::clear();
+}
