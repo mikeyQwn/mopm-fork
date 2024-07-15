@@ -1,16 +1,8 @@
-use std::{
-    borrow::BorrowMut,
-    collections::HashMap,
-    io::{Cursor, Read},
-};
+use std::collections::HashMap;
 
 use thiserror::Error;
 
-use super::{
-    encryptor::{AESEncryptor, Encryprtor, EncryprtorError},
-    hasher::{Hasher, Sha256Hasher},
-    identifiers::Identifiable,
-};
+use super::encryptor::{Encryprtor, EncryprtorError};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PasswordManagerError {

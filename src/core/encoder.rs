@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::{self, Read, Write},
+    mem::size_of,
 };
 
 use thiserror::Error;
@@ -28,9 +29,6 @@ pub enum EncoderError {
     #[error("invalid key")]
     IvalidKeyError,
 }
-
-const SEPARATOR_KV: u8 = 1;
-const SEPARATOR_ENTRY: u8 = 2;
 
 pub struct Encoder {}
 
@@ -135,42 +133,49 @@ pub struct Body {
 
 impl Body {
     pub fn to_bytes(kv: &HashMap<String, Box<[u8]>>) -> Vec<u8> {
-        kv.iter()
-            .enumerate()
-            .fold(Vec::new(), |mut acc, (i, (k, v))| {
-                if i != 0 {
-                    acc.push(SEPARATOR_ENTRY);
-                }
-                acc.extend(k.as_bytes());
-                acc.push(SEPARATOR_KV);
-                acc.extend(v.iter());
-                acc
-            })
+        kv.iter().fold(Vec::new(), |mut acc, (key, value)| {
+            acc.extend((key.len() as u64).to_be_bytes());
+            acc.extend((value.len() as u64).to_be_bytes());
+            acc.extend(key.as_bytes());
+            acc.extend(value.iter());
+            acc
+        })
     }
 
     pub fn try_from_bytes(bytes: &[u8]) -> Result<HashMap<String, Box<[u8]>>, EncoderError> {
         if bytes.is_empty() {
             return Ok(HashMap::new());
         }
-        let kv =
-            bytes
-                .split(|v| *v == SEPARATOR_ENTRY)
-                .try_fold(HashMap::new(), |mut acc, entry| {
-                    let mut lr = entry.splitn(2, |v| *v == SEPARATOR_KV);
-                    let k = lr
-                        .next()
-                        .ok_or(EncoderError::BodyParseError)
-                        .and_then(|k| {
-                            String::from_utf8(k.to_vec()).or(Err(EncoderError::BodyParseError))
-                        })?;
-                    let v = lr
-                        .next()
-                        .ok_or(EncoderError::BodyParseError)
-                        .map(|v| v.to_vec().into_boxed_slice())?;
-                    acc.insert(k, v);
-                    Ok(acc)
-                })?;
+        let mut kv = HashMap::new();
+        let mut iter = bytes.iter().copied().peekable();
+
+        while let Some(_) = iter.peek() {
+            let key_length = Self::read_u64(&mut iter)? as usize;
+            let value_length = Self::read_u64(&mut iter)? as usize;
+
+            let key: Vec<u8> = iter.by_ref().take(key_length).collect();
+            if key.len() != key_length {
+                return Err(EncoderError::BodyParseError);
+            }
+            let value: Vec<u8> = iter.by_ref().take(value_length).collect();
+            if value.len() != value_length {
+                return Err(EncoderError::BodyParseError);
+            }
+
+            let key_string = String::from_utf8(key).or(Err(EncoderError::BodyParseError))?;
+            kv.insert(key_string, value.into_boxed_slice());
+        }
+
         Ok(kv)
+    }
+
+    fn read_u64<'a>(iter: &mut impl Iterator<Item = u8>) -> Result<u64, EncoderError> {
+        Ok(u64::from_be_bytes(
+            iter.take(size_of::<u64>())
+                .collect::<Vec<u8>>()
+                .try_into()
+                .or(Err(EncoderError::BodyParseError))?,
+        ))
     }
 }
 
@@ -221,6 +226,21 @@ mod tests {
     #[test]
     pub fn test_encoder() {
         let mut pm = PasswordManager::from_raw_parts(HashMap::new(), AESEncryptor::new("foobar"));
+        let _ = pm.store_password("foo".to_string(), "bar");
+        let _ = pm.store_password("foo2".to_string(), "baz");
+        let mut v = Vec::new();
+        Encoder::encode(&mut v, &mut pm);
+        let mut c = Cursor::new(v);
+        let pm2 = Encoder::decode(b"foobar", &mut c).unwrap();
+        assert_eq!(pm.encryptor.id(), pm2.encryptor.id());
+        assert_eq!(pm.kv, pm2.kv);
+
+        assert_eq!(pm.get_password("foo2"), Ok("baz".to_string()))
+    }
+
+    #[test]
+    pub fn test_different_encoder() {
+        let mut pm = PasswordManager::from_raw_parts(HashMap::new(), BlankEncryptor::new());
         let _ = pm.store_password("foo".to_string(), "bar");
         let _ = pm.store_password("foo2".to_string(), "baz");
         let mut v = Vec::new();
