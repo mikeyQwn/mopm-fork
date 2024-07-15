@@ -6,6 +6,10 @@ pub struct Storage {}
 
 #[derive(Error, Debug)]
 pub enum StorageError {
+    #[error("the root directory already exists")]
+    RootAlreadyExistsErorr,
+    #[error("the root directory does not exist")]
+    RootDoesNotExistErorr,
     #[error("cannot extract home directory")]
     HomedirExtractionError,
     #[error("io error")]
@@ -23,7 +27,7 @@ impl Storage {
         let root = Self::root()?;
 
         if root.exists() {
-            return Ok(());
+            return Err(StorageError::RootAlreadyExistsErorr);
         }
 
         create_dir(root).map_err(StorageError::from)
@@ -31,6 +35,9 @@ impl Storage {
 
     pub fn clear() -> Result<(), StorageError> {
         let root = Self::root()?;
+        if !root.exists() {
+            return Err(StorageError::RootDoesNotExistErorr);
+        }
 
         std::fs::remove_dir_all(root).map_err(StorageError::from)
     }
