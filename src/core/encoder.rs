@@ -94,9 +94,7 @@ impl Header {
 
     pub fn try_from_reader(r: &mut impl Read) -> Result<Self, EncoderError> {
         let mut buf = [0; Self::SIZE];
-        let n = r
-            .read(&mut buf)
-            .or_else(|err| Err(EncoderError::ReaderError(err)))?;
+        let n = r.read(&mut buf).map_err(EncoderError::ReaderError)?;
         if n != buf.len() {
             return Err(EncoderError::InvalidHeaderSize);
         }
@@ -149,7 +147,7 @@ impl Body {
         let mut kv = HashMap::new();
         let mut iter = bytes.iter().copied().peekable();
 
-        while let Some(_) = iter.peek() {
+        while iter.peek().is_some() {
             let key_length = Self::read_u64(&mut iter)? as usize;
             let value_length = Self::read_u64(&mut iter)? as usize;
 
@@ -169,7 +167,7 @@ impl Body {
         Ok(kv)
     }
 
-    fn read_u64<'a>(iter: &mut impl Iterator<Item = u8>) -> Result<u64, EncoderError> {
+    fn read_u64(iter: &mut impl Iterator<Item = u8>) -> Result<u64, EncoderError> {
         Ok(u64::from_be_bytes(
             iter.take(size_of::<u64>())
                 .collect::<Vec<u8>>()

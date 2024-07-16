@@ -1,4 +1,4 @@
-use std::io::{Stdout, Write};
+use std::io::Stdout;
 
 pub struct Logger<T>
 where
@@ -16,18 +16,18 @@ where
     }
 
     pub fn info(&mut self, buf: &[u8]) {
-        let _ = self.terminal.write(&buf);
+        let _ = self.terminal.write(buf);
     }
 
     pub fn warn(&mut self, buf: &[u8]) {
         let _ = self.terminal.fg(term::color::RED);
-        let _ = self.terminal.write(&buf);
+        let _ = self.terminal.write(buf);
         let _ = self.terminal.reset();
     }
 
     pub fn fatal(&mut self, buf: &[u8]) -> ! {
         let _ = self.terminal.fg(term::color::RED);
-        let _ = self.terminal.write(&buf);
+        let _ = self.terminal.write(buf);
         let _ = self.terminal.reset();
         std::process::exit(1);
     }

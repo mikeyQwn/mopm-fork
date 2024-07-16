@@ -11,8 +11,8 @@ impl Version {
         Version::try_from(id).ok()
     }
 
-    pub fn to_u8(&self) -> u8 {
-        (*self).into()
+    pub fn to_u8(self) -> u8 {
+        self.into()
     }
 
     pub fn current_version() -> Self {

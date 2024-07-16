@@ -88,7 +88,7 @@ impl Encryprtor for AESEncryptor {
             .encrypt(&nonce, data.as_ref())
             .map_err(|err| EncryprtorError::EncryptionError(err.to_string()))?;
 
-        let ciphertext = nonce.into_iter().chain(encrypted_bytes.into_iter());
+        let ciphertext = nonce.into_iter().chain(encrypted_bytes);
 
         Ok(ciphertext.collect::<Vec<_>>().into_boxed_slice())
     }

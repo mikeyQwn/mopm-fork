@@ -1,4 +1,4 @@
-use app::app::App;
+use app::application::App;
 use cli::config::Config;
 use log::logger::Logger;
 

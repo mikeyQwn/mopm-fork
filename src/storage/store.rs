@@ -47,6 +47,7 @@ impl Storage {
         let mut password_file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(root)
             .map_err(StorageError::from)?;
 

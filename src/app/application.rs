@@ -10,7 +10,7 @@ use crate::{
         manager::PasswordManager,
     },
     log::logger::Logger,
-    storage::storage::{Storage, StorageError},
+    storage::store::{Storage, StorageError},
 };
 
 use super::constants;
@@ -76,7 +76,7 @@ where
 
     fn handle_get(&mut self, key: &str) {
         let mut pm = self.get_password_manager();
-        self.logger.info(pm.get_password(&key).unwrap().as_ref());
+        self.logger.info(pm.get_password(key).unwrap().as_ref());
     }
 
     fn prompt_password(&mut self) -> String {
