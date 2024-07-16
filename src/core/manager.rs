@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use super::encryptor::{Encryprtor, EncryprtorError};
+use super::encryptor::{AESEncryptor, Encryprtor, EncryprtorError};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PasswordManagerError {
@@ -25,6 +25,15 @@ where
 {
     pub(in crate::core) kv: HashMap<String, Box<[u8]>>,
     pub(in crate::core) encryptor: T,
+}
+
+impl PasswordManager<AESEncryptor> {
+    pub fn init(key: &str) -> Self {
+        Self {
+            kv: HashMap::new(),
+            encryptor: AESEncryptor::new(key),
+        }
+    }
 }
 
 impl<T> PasswordManager<T>

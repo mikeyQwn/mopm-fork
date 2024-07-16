@@ -1,6 +1,14 @@
-use std::{fs::create_dir, io, path::PathBuf};
+use std::{
+    fs::create_dir,
+    io::{self, Read, Write},
+    path::PathBuf,
+};
 
 use thiserror::Error;
+
+use crate::core::{
+    encoder::Encoder, encryptor::Encryprtor, identifiers::Identifiable, manager::PasswordManager,
+};
 
 pub struct Storage {}
 
@@ -23,14 +31,48 @@ impl From<io::Error> for StorageError {
 }
 
 impl Storage {
-    pub fn init() -> Result<(), StorageError> {
-        let root = Self::root()?;
+    pub fn init<T>(pm: &mut PasswordManager<T>) -> Result<(), StorageError>
+    where
+        T: Encryprtor + Identifiable,
+    {
+        let mut root = Self::root()?;
 
         if root.exists() {
             return Err(StorageError::RootAlreadyExistsErorr);
         }
 
-        create_dir(root).map_err(StorageError::from)
+        create_dir(&root)?;
+
+        root.push("data");
+        let mut password_file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(root)
+            .map_err(StorageError::from)?;
+
+        Encoder::encode(&mut password_file, pm);
+        Ok(())
+    }
+
+    pub fn get_data_reader() -> Result<impl Read, StorageError> {
+        let mut root = Self::root()?;
+        root.push("data");
+
+        let password_file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(root)
+            .map_err(StorageError::from)?;
+        Ok(password_file)
+    }
+
+    pub fn get_data_writer() -> Result<impl Write, StorageError> {
+        let mut root = Self::root()?;
+        root.push("data");
+        let password_file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(root)
+            .map_err(StorageError::from)?;
+        Ok(password_file)
     }
 
     pub fn clear() -> Result<(), StorageError> {
