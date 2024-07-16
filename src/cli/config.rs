@@ -48,6 +48,7 @@ impl Command {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Config {
     pub _path: String,
     pub command: Command,
