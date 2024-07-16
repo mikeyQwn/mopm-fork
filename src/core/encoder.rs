@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use super::{
     encoding::version::Version,
-    encryptor::{DynamicEncryptor, Encryprtor},
+    encryptor::{DynamicEncryptor, Encryprtor, EncryprtorError},
     hasher::{Hasher, Sha256Hasher},
     identifiers::{encryptor_from_id, Identifiable},
     manager::PasswordManager,
@@ -20,14 +20,28 @@ pub enum EncoderError {
     BodyParseError,
     #[error("header size is not correct")]
     InvalidHeaderSize,
-    #[error("could not read from reader")]
-    ReaderError(io::Error),
+    #[error("could not read/write from/to io")]
+    IoError(io::Error),
     #[error("invalid header format")]
     HeaderParseError,
     #[error("unsupported encryptor version")]
     UnsupportedEncryptorVersionError,
     #[error("invalid key")]
     IvalidKeyError,
+    #[error("encryptor error")]
+    EncryptorError(EncryprtorError),
+}
+
+impl From<EncryprtorError> for EncoderError {
+    fn from(value: EncryprtorError) -> Self {
+        Self::EncryptorError(value)
+    }
+}
+
+impl From<io::Error> for EncoderError {
+    fn from(value: io::Error) -> Self {
+        Self::IoError(value)
+    }
 }
 
 pub struct Encoder {}
@@ -61,24 +75,25 @@ impl Encoder {
         ))
     }
 
-    pub fn encode<T>(w: &mut impl Write, pm: &mut PasswordManager<T>)
+    pub fn encode<T>(w: &mut impl Write, pm: &mut PasswordManager<T>) -> Result<(), EncoderError>
     where
         T: Encryprtor + Identifiable,
     {
         let body_bytes = Body::to_bytes(&pm.kv);
         let body_sha = Sha256Hasher::new().hash(&body_bytes);
 
-        let body_encrypted = pm.encryptor.encrypt(&body_bytes).unwrap();
+        let body_encrypted = pm.encryptor.encrypt(&body_bytes)?;
 
         let header = Header {
             version: Version::current_version(),
             encryptor_id: pm.encryptor.id(),
-            body_sha: body_sha[..].try_into().unwrap(),
+            body_sha: body_sha[..].try_into().unwrap_or([0; 32]),
         };
 
         let bytes = header.to_bytes();
-        let _ = w.write(&bytes);
-        let _ = w.write(&body_encrypted);
+        let _ = w.write(&bytes)?;
+        let _ = w.write(&body_encrypted)?;
+        Ok(())
     }
 }
 
@@ -94,7 +109,7 @@ impl Header {
 
     pub fn try_from_reader(r: &mut impl Read) -> Result<Self, EncoderError> {
         let mut buf = [0; Self::SIZE];
-        let n = r.read(&mut buf).map_err(EncoderError::ReaderError)?;
+        let n = r.read(&mut buf).map_err(EncoderError::IoError)?;
         if n != buf.len() {
             return Err(EncoderError::InvalidHeaderSize);
         }

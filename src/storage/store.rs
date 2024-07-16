@@ -7,7 +7,10 @@ use std::{
 use thiserror::Error;
 
 use crate::core::{
-    encoder::Encoder, encryptor::Encryprtor, identifiers::Identifiable, manager::PasswordManager,
+    encoder::{Encoder, EncoderError},
+    encryptor::Encryprtor,
+    identifiers::Identifiable,
+    manager::PasswordManager,
 };
 
 pub struct Storage {}
@@ -22,11 +25,18 @@ pub enum StorageError {
     HomedirExtractionError,
     #[error("io error")]
     IoError(io::Error),
+    #[error("encoder error")]
+    EncoderError(EncoderError),
 }
 
 impl From<io::Error> for StorageError {
     fn from(value: io::Error) -> Self {
         Self::IoError(value)
+    }
+}
+impl From<EncoderError> for StorageError {
+    fn from(value: EncoderError) -> Self {
+        Self::EncoderError(value)
     }
 }
 
@@ -51,7 +61,7 @@ impl Storage {
             .open(root)
             .map_err(StorageError::from)?;
 
-        Encoder::encode(&mut password_file, pm);
+        Encoder::encode(&mut password_file, pm)?;
         Ok(())
     }
 

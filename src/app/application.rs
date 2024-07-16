@@ -4,7 +4,7 @@ use crate::{
         terminal::Terminal,
     },
     core::{
-        encoder::Encoder,
+        encoder::{Encoder, EncoderError},
         encryptor::{DynamicEncryptor, Encryprtor},
         identifiers::Identifiable,
         manager::PasswordManager,
@@ -70,7 +70,10 @@ where
     fn handle_store(&mut self, key: &str, value: &str) {
         let mut pm = self.get_password_manager();
         pm.store_password(key.into(), value).unwrap();
-        self.save_password_manager(&mut pm);
+        if let Err(err) = self.save_password_manager(&mut pm) {
+            self.logger.error(&err);
+            self.logger.fatal(constants::ERROR_WHILE_SAVING.as_ref())
+        };
         self.logger.info(constants::STORE_SUCCESSFUL.as_ref());
     }
 
@@ -91,11 +94,14 @@ where
         Encoder::decode(password.trim().as_ref(), &mut pm_reader).unwrap()
     }
 
-    fn save_password_manager<U>(&self, password_manager: &mut PasswordManager<U>)
+    fn save_password_manager<U>(
+        &self,
+        password_manager: &mut PasswordManager<U>,
+    ) -> Result<(), EncoderError>
     where
         U: Encryprtor + Identifiable,
     {
         let mut writer = Storage::get_data_writer().unwrap();
-        Encoder::encode(&mut writer, password_manager);
+        Encoder::encode(&mut writer, password_manager)
     }
 }
