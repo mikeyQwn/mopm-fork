@@ -2,8 +2,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum CliError {
-    #[error("no command specified")]
-    NoCommandSpecifiedError,
     #[error("invalid command specified")]
     InvalidCommandError,
     #[error("missing argument for command `{0:?}`, missing argument: `{1}`")]
@@ -55,8 +53,7 @@ impl Command {
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub _path: String,
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 impl Config {
@@ -66,12 +63,17 @@ impl Config {
     }
 
     fn from_iter(args: &mut impl Iterator<Item = String>) -> Result<Self, CliError> {
-        let _path = args.next().ok_or(CliError::NoCommandSpecifiedError)?;
-        let command_str: String = args.next().ok_or(CliError::NoCommandSpecifiedError)?;
+        let command: Option<Command> = args
+            .skip(1)
+            .next()
+            .map(|cmd_str| {
+                cmd_str
+                    .as_str()
+                    .try_into()
+                    .and_then(|cmd: Command| cmd.parse_extra(args))
+            })
+            .transpose()?;
 
-        let command: Command = command_str.as_str().try_into()?;
-        let command = command.parse_extra(args)?;
-
-        Ok(Config { _path, command })
+        Ok(Config { command })
     }
 }

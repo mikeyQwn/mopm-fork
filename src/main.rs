@@ -15,9 +15,6 @@ fn main() {
         Err(err) => {
             logger.error(&err);
             match err {
-                CliError::NoCommandSpecifiedError => {
-                    logger.fatal(b"No command specified. exiting");
-                }
                 CliError::InvalidCommandError => {
                     logger.fatal(b"No such command");
                 }

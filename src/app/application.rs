@@ -32,33 +32,36 @@ where
     }
 
     pub fn run(&mut self) {
-        let command = std::mem::replace(&mut self.config.command, Command::Init);
+        let command = match std::mem::replace(&mut self.config.command, None) {
+            None => {
+                self.logger.info(constants::NO_COMMAND_SPECIFIED.as_ref());
+                return;
+            }
+            Some(v) => v,
+        };
 
         match command {
             Command::Init => self.handle_init(),
             Command::Clear => self.handle_clear(),
-            rest => {
-                if !Storage::is_initialized().unwrap() {
-                    self.logger.fatal(constants::NOT_INITIALIZED.as_ref())
-                }
-                match rest {
-                    Command::Store(key, value) => self.handle_store(key.as_ref(), value.as_ref()),
-                    Command::Get(key) => self.handle_get(key.as_ref()),
-                    _ => unreachable!(),
-                }
+            Command::Store(key, value) => {
+                self.with_init(|app| app.handle_store(key.as_ref(), value.as_ref()))
             }
+            Command::Get(key) => self.with_init(|app| app.handle_get(key.as_ref())),
         }
     }
 
     fn handle_init(&mut self) {
+        if Storage::is_initialized().unwrap() {
+            self.logger.warn(constants::ALREADY_INITIALIZED.as_ref());
+            return;
+        }
+
         let password = self.prompt_password();
         let mut pm = PasswordManager::init(password.trim());
 
         match Storage::init(&mut pm) {
             Ok(_) => self.logger.info(constants::INIT_SUCCESSFULL.as_ref()),
-            Err(StorageError::RootAlreadyExistsErorr) => {
-                self.logger.warn(constants::ALREADY_INITIALIZED.as_ref())
-            }
+            Err(StorageError::RootAlreadyExistsErorr) => {}
             Err(err) => self.logger.fatal(err.to_string().as_ref()),
         }
     }
@@ -117,5 +120,13 @@ where
     {
         let mut writer = Storage::get_data_writer().unwrap();
         Encoder::encode(&mut writer, password_manager)
+    }
+
+    fn with_init(&mut self, f: impl FnOnce(&mut Self)) {
+        if !Storage::is_initialized().unwrap() {
+            self.logger.fatal(constants::NOT_INITIALIZED.as_ref());
+        } else {
+            f(self);
+        }
     }
 }
