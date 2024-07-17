@@ -45,7 +45,7 @@ where
     }
 
     pub fn fatal(&mut self, buf: &[u8]) -> ! {
-        let _ = self.terminal.fg(term::color::RED);
+        let _ = self.terminal.fg(term::color::BRIGHT_RED);
         let _ = self.terminal.write(buf);
         let _ = self.terminal.reset();
         std::process::exit(1);

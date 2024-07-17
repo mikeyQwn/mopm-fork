@@ -34,7 +34,7 @@ impl Storage {
     where
         T: Encryprtor + Identifiable,
     {
-        let mut root = Self::root()?;
+        let root = Self::root()?;
 
         if root.exists() {
             return Err(StorageError::RootAlreadyExistsErorr);
@@ -42,12 +42,11 @@ impl Storage {
 
         create_dir(&root)?;
 
-        root.push("data");
         let mut password_file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
-            .open(root)
+            .open(Self::data_file()?)
             .map_err(StorageError::from)?;
 
         Encoder::encode(&mut password_file, pm)?;
@@ -55,24 +54,17 @@ impl Storage {
     }
 
     pub fn get_data_reader() -> Result<impl Read, StorageError> {
-        let mut root = Self::root()?;
-        root.push("data");
-
-        let password_file = std::fs::OpenOptions::new()
+        std::fs::OpenOptions::new()
             .read(true)
-            .open(root)
-            .map_err(StorageError::from)?;
-        Ok(password_file)
+            .open(Self::data_file()?)
+            .map_err(StorageError::from)
     }
 
     pub fn get_data_writer() -> Result<impl Write, StorageError> {
-        let mut root = Self::root()?;
-        root.push("data");
-        let password_file = std::fs::OpenOptions::new()
+        std::fs::OpenOptions::new()
             .write(true)
-            .open(root)
-            .map_err(StorageError::from)?;
-        Ok(password_file)
+            .open(Self::data_file()?)
+            .map_err(StorageError::from)
     }
 
     pub fn clear() -> Result<(), StorageError> {
@@ -84,11 +76,22 @@ impl Storage {
         std::fs::remove_dir_all(root).map_err(StorageError::from)
     }
 
-    fn root() -> Result<PathBuf, StorageError> {
-        let mut homedir = Self::homedir()?;
-        homedir.push(".mopm");
+    pub fn is_initialized() -> Result<bool, StorageError> {
+        Ok(Self::root()?.exists() && Self::data_file()?.exists())
+    }
 
-        Ok(homedir)
+    fn root() -> Result<PathBuf, StorageError> {
+        let mut root = Self::homedir()?;
+        root.push(".mopm");
+
+        Ok(root)
+    }
+
+    fn data_file() -> Result<PathBuf, StorageError> {
+        let mut data = Self::root()?;
+        data.push(".data");
+
+        Ok(data)
     }
 
     #[cfg(unix)]

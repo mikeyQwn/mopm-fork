@@ -37,8 +37,16 @@ where
         match command {
             Command::Init => self.handle_init(),
             Command::Clear => self.handle_clear(),
-            Command::Store(key, value) => self.handle_store(key.as_ref(), value.as_ref()),
-            Command::Get(key) => self.handle_get(key.as_ref()),
+            rest => {
+                if !Storage::is_initialized().unwrap() {
+                    self.logger.fatal(constants::NOT_INITIALIZED.as_ref())
+                }
+                match rest {
+                    Command::Store(key, value) => self.handle_store(key.as_ref(), value.as_ref()),
+                    Command::Get(key) => self.handle_get(key.as_ref()),
+                    _ => unreachable!(),
+                }
+            }
         }
     }
 
