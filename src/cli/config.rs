@@ -6,7 +6,7 @@ pub enum CliError {
     NoCommandSpecifiedError,
     #[error("invalid command specified")]
     InvalidCommandError,
-    #[error("missing argument for command")]
+    #[error("missing argument for command `{0:?}`, missing argument: `{1}`")]
     MissingArgument(Command, String),
 }
 

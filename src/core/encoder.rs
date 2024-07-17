@@ -21,27 +21,15 @@ pub enum EncoderError {
     #[error("header size is not correct")]
     InvalidHeaderSize,
     #[error("could not read/write from/to io")]
-    IoError(io::Error),
+    IoError(#[from] io::Error),
     #[error("invalid header format")]
     HeaderParseError,
     #[error("unsupported encryptor version")]
     UnsupportedEncryptorVersionError,
     #[error("invalid key")]
     IvalidKeyError,
-    #[error("encryptor error")]
-    EncryptorError(EncryprtorError),
-}
-
-impl From<EncryprtorError> for EncoderError {
-    fn from(value: EncryprtorError) -> Self {
-        Self::EncryptorError(value)
-    }
-}
-
-impl From<io::Error> for EncoderError {
-    fn from(value: io::Error) -> Self {
-        Self::IoError(value)
-    }
+    #[error("encryptor error: `{0}`")]
+    EncryptorError(#[from] EncryprtorError),
 }
 
 pub struct Encoder {}
@@ -56,8 +44,8 @@ impl Encoder {
             .ok_or(EncoderError::UnsupportedEncryptorVersionError)?;
 
         let mut buf = Vec::new();
-        let _ = reader.read_to_end(&mut buf).unwrap();
-        let body_decrypted = encryptor.decrypt(&buf).unwrap();
+        let _ = reader.read_to_end(&mut buf)?;
+        let body_decrypted = encryptor.decrypt(&buf)?;
 
         if header
             .body_sha

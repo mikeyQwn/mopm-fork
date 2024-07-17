@@ -90,8 +90,14 @@ where
 
     fn get_password_manager(&mut self) -> PasswordManager<DynamicEncryptor> {
         let password = self.prompt_password();
-        let mut pm_reader = Storage::get_data_reader().unwrap();
-        Encoder::decode(password.trim().as_ref(), &mut pm_reader).unwrap()
+        let mut pm_reader = match Storage::get_data_reader() {
+            Ok(v) => v,
+            Err(err) => self.logger.fatal(err.to_string().as_ref()),
+        };
+        match Encoder::decode(password.trim().as_ref(), &mut pm_reader) {
+            Ok(v) => v,
+            Err(err) => self.logger.fatal(err.to_string().as_ref()),
+        }
     }
 
     fn save_password_manager<U>(

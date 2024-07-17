@@ -6,16 +6,10 @@ use super::encryptor::{AESEncryptor, Encryprtor, EncryprtorError};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PasswordManagerError {
-    #[error("ecryptor error")]
-    EncryptorError(EncryprtorError),
+    #[error("error while encrypting the password: `{0}`")]
+    EncryptorError(#[from] EncryprtorError),
     #[error("no matching passwords found")]
     NoPasswordFound,
-}
-
-impl From<EncryprtorError> for PasswordManagerError {
-    fn from(value: EncryprtorError) -> Self {
-        Self::EncryptorError(value)
-    }
 }
 
 #[derive(Debug)]

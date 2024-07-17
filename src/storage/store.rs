@@ -23,21 +23,10 @@ pub enum StorageError {
     RootDoesNotExistErorr,
     #[error("cannot extract home directory")]
     HomedirExtractionError,
-    #[error("io error")]
-    IoError(io::Error),
-    #[error("encoder error")]
-    EncoderError(EncoderError),
-}
-
-impl From<io::Error> for StorageError {
-    fn from(value: io::Error) -> Self {
-        Self::IoError(value)
-    }
-}
-impl From<EncoderError> for StorageError {
-    fn from(value: EncoderError) -> Self {
-        Self::EncoderError(value)
-    }
+    #[error("error while reading/writing: `{0}`")]
+    IoError(#[from] io::Error),
+    #[error("encoder error: `{0}`")]
+    EncoderError(#[from] EncoderError),
 }
 
 impl Storage {
