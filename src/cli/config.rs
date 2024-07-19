@@ -6,6 +6,8 @@ pub enum CliError {
     InvalidCommandError,
     #[error("missing argument for command `{0:?}`, missing argument: `{1}`")]
     MissingArgument(Command, String),
+    #[error("invalid argument specified: `{0}")]
+    InvalidArgumentError(String),
 }
 
 #[derive(Debug, Clone)]
@@ -14,6 +16,24 @@ pub enum Command {
     Clear,
     Store(String, String),
     Get(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum Argument {
+    Help,
+    Version,
+}
+
+impl<'a> TryFrom<&'a str> for Argument {
+    type Error = CliError;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        Ok(match value {
+            "-v" | "--version" => Self::Version,
+            "-h" | "--help" => Self::Help,
+            arg => return Err(CliError::InvalidArgumentError(arg.to_string())),
+        })
+    }
 }
 
 impl<'a> TryFrom<&'a str> for Command {
@@ -51,9 +71,11 @@ impl Command {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub command: Option<Command>,
+    pub show_help: bool,
+    pub show_version: bool,
 }
 
 impl Config {
@@ -62,18 +84,39 @@ impl Config {
         Self::from_iter(&mut args)
     }
 
-    fn from_iter(args: &mut impl Iterator<Item = String>) -> Result<Self, CliError> {
-        let command: Option<Command> = args
-            .skip(1)
-            .next()
-            .map(|cmd_str| {
-                cmd_str
-                    .as_str()
-                    .try_into()
-                    .and_then(|cmd: Command| cmd.parse_extra(args))
-            })
-            .transpose()?;
+    pub fn with_command(mut self, command: Option<Command>) -> Self {
+        self.command = command;
+        self
+    }
 
-        Ok(Config { command })
+    fn from_iter(args: &mut impl Iterator<Item = String>) -> Result<Self, CliError> {
+        let mut args = args.skip(1);
+        let mut config = Self::default();
+        let maybe_command = match args.next() {
+            Some(v) => v,
+            None => return Ok(config),
+        };
+        let mut first_arg = vec![];
+
+        match Command::try_from(maybe_command.as_str()) {
+            Ok(command) => config = config.with_command(Some(command.parse_extra(&mut args)?)),
+            Err(_) if maybe_command.starts_with('-') => first_arg.push(maybe_command),
+            Err(err) => return Err(err),
+        }
+
+        first_arg
+            .into_iter()
+            .chain(args)
+            .try_fold(config, |acc, v| {
+                Ok(acc.apply_argument(Argument::try_from(v.as_str())?))
+            })
+    }
+
+    pub fn apply_argument(mut self, argument: Argument) -> Self {
+        match argument {
+            Argument::Version => self.show_version = true,
+            Argument::Help => self.show_help = true,
+        }
+        self
     }
 }

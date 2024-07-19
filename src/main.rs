@@ -21,6 +21,9 @@ fn main() {
                 CliError::MissingArgument(_, info) => {
                     logger.fatal(format!("Missing argument: {}", info).as_ref());
                 }
+                CliError::InvalidArgumentError(argument) => {
+                    logger.fatal(format!("Invalid argument: {}", argument).as_ref());
+                }
             }
         }
     };

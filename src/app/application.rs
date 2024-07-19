@@ -32,7 +32,11 @@ where
     }
 
     pub fn run(&mut self) {
-        let command = match std::mem::replace(&mut self.config.command, None) {
+        if self.handle_breaking_arguments() {
+            return;
+        }
+
+        let command = match self.config.command.take() {
             None => {
                 self.logger.info(constants::NO_COMMAND_SPECIFIED.as_ref());
                 return;
@@ -48,6 +52,18 @@ where
             }
             Command::Get(key) => self.with_init(|app| app.handle_get(key.as_ref())),
         }
+    }
+
+    fn handle_breaking_arguments(&mut self) -> bool {
+        if self.config.show_version {
+            self.logger.info(b"version\n");
+            return true;
+        }
+        if self.config.show_help {
+            self.logger.info(b"help\n");
+            return true;
+        }
+        false
     }
 
     fn handle_init(&mut self) {
