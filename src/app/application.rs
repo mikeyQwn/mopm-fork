@@ -5,6 +5,7 @@ use crate::{
     },
     core::{
         encoder::{Encoder, EncoderError},
+        encoding::version::Version,
         encryptor::{DynamicEncryptor, Encryprtor},
         identifiers::Identifiable,
         manager::PasswordManager,
@@ -56,7 +57,8 @@ where
 
     fn handle_breaking_arguments(&mut self) -> bool {
         if self.config.show_version {
-            self.logger.info(b"version\n");
+            self.logger
+                .info(format!("Version: {}\n", Version::current_version()).as_ref());
             return true;
         }
         if self.config.show_help {
