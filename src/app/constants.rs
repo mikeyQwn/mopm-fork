@@ -7,4 +7,11 @@ pub const CLEAR_SUCCESSFUL: &str = "The momp storage has been cleared. All data 
 pub const NOT_INITIALIZED: &str =
     "The mopm storage has not been initialized. Initialize it with: `mopm init`\n";
 pub const ERROR_WHILE_SAVING: &str = "An error occured while saving the storage file\n";
-pub const NO_COMMAND_SPECIFIED: &str = "No command specified\n";
+pub const NO_COMMAND_SPECIFIED: &str = "No command specified\nUsage: mopm [COMMAND] [OPTIONS..]\n";
+
+pub const HELP_MESSAGE: &str = r#"Usage: mopm [COMMAND] [OPTIONS..]
+
+Options:
+  -h, --help         Display this message
+  -v, --version      Display the current version
+"#;

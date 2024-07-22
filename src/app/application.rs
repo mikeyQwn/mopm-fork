@@ -62,7 +62,7 @@ where
             return true;
         }
         if self.config.show_help {
-            self.logger.info(b"help\n");
+            self.logger.info(constants::HELP_MESSAGE.as_ref());
             return true;
         }
         false
