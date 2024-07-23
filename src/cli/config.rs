@@ -16,6 +16,7 @@ pub enum Command {
     Clear,
     Store(String, String),
     Get(String),
+    Shield(String),
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +46,7 @@ impl<'a> TryFrom<&'a str> for Command {
             "clear" => Ok(Self::Clear),
             "store" => Ok(Self::Store("".to_string(), "".to_string())),
             "get" => Ok(Self::Get("".to_string())),
+            "shield" => Ok(Self::Shield("".to_string())),
             _ => Err(CliError::InvalidCommandError),
         }
     }
@@ -66,6 +68,9 @@ impl Command {
                 self,
                 "key: string, position: 1".to_string(),
             ))?)),
+            Self::Shield(_) => Ok(Self::Shield(args.next().ok_or(
+                CliError::MissingArgument(self, "up | down, position: 1".to_string()),
+            )?)),
             _ => Ok(self),
         }
     }

@@ -2,6 +2,7 @@ use std::{
     fs::create_dir,
     io::{self, Read, Write},
     path::PathBuf,
+    str::FromStr,
 };
 
 use thiserror::Error;
@@ -27,6 +28,8 @@ pub enum StorageError {
     IoError(#[from] io::Error),
     #[error("encoder error: `{0}`")]
     EncoderError(#[from] EncoderError),
+    #[error("path buf error: `{0}`")]
+    PathBufError(#[from] core::convert::Infallible),
 }
 
 impl Storage {
@@ -50,6 +53,34 @@ impl Storage {
             .map_err(StorageError::from)?;
 
         Encoder::encode(&mut password_file, pm)?;
+        Ok(())
+    }
+
+    pub fn create_dummies() -> Result<(), StorageError> {
+        let (upper, lower, work) = Self::dummies()?;
+        let upper_file = Self::upper_file()?;
+
+        if !upper.exists() {
+            create_dir(upper)?;
+        };
+
+        if !upper_file.exists() {
+            let mut password_file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(upper_file)
+                .map_err(StorageError::from)?;
+            password_file.write(b"You are not supposed to see this. Get out.")?;
+        }
+
+        if !lower.exists() {
+            create_dir(lower)?;
+        };
+
+        if !work.exists() {
+            create_dir(work)?;
+        };
         Ok(())
     }
 
@@ -80,7 +111,7 @@ impl Storage {
         Ok(Self::root()?.exists() && Self::data_file()?.exists())
     }
 
-    fn root() -> Result<PathBuf, StorageError> {
+    pub fn root() -> Result<PathBuf, StorageError> {
         let mut root = Self::homedir()?;
         root.push(".mopm");
 
@@ -92,6 +123,21 @@ impl Storage {
         data.push(".data");
 
         Ok(data)
+    }
+
+    pub fn dummies() -> Result<(PathBuf, PathBuf, PathBuf), StorageError> {
+        let upper = PathBuf::from_str("/tmp/mopm-dummy-upper")?;
+        let lower = PathBuf::from_str("/tmp/mopm-dummy-lower")?;
+        let work = PathBuf::from_str("/tmp/mopm-dummy-work")?;
+
+        Ok((upper, lower, work))
+    }
+
+    pub fn upper_file() -> Result<PathBuf, StorageError> {
+        let mut upper = PathBuf::from_str("/tmp/mopm-dummy-upper")?;
+        upper.push("not-a-honeypot.txt");
+
+        Ok(upper)
     }
 
     #[cfg(unix)]

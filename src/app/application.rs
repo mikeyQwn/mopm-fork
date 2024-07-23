@@ -52,6 +52,14 @@ where
                 self.with_init(|app| app.handle_store(key.as_ref(), value.as_ref()))
             }
             Command::Get(key) => self.with_init(|app| app.handle_get(key.as_ref())),
+
+            Command::Shield(v) => match v.as_str() {
+                "up" => self.with_init(|app| app.handle_shield_up()),
+                "down" => self.handle_shield_down(),
+                _ => self
+                    .logger
+                    .fatal("invalid argument, accepted: `up`, `down`".as_ref()),
+            },
         }
     }
 
@@ -146,5 +154,85 @@ where
         } else {
             f(self);
         }
+    }
+
+    fn handle_shield_up(&mut self) {
+        if let Err(err) = Storage::create_dummies() {
+            self.logger.error(&err);
+            self.logger
+                .fatal("Cannot create dummy directories".as_ref());
+        }
+
+        let (upper, lower, work) = match Storage::dummies() {
+            Ok(data) => data,
+            Err(err) => {
+                self.logger.error(&err);
+                self.logger
+                    .fatal("Cannot get dummy directories' paths".as_ref());
+            }
+        };
+
+        let root_dir = match Storage::root() {
+            Ok(data) => data,
+            Err(err) => {
+                self.logger.error(&err);
+                self.logger.fatal("Cannot get root path".as_ref());
+            }
+        };
+
+        let honeypot_file = match Storage::upper_file() {
+            Ok(path) => path,
+            Err(err) => {
+                self.logger.error(&err);
+                self.logger.fatal("Cannot get honeypot file path".as_ref());
+            }
+        };
+
+        let command = std::process::Command::new("mount")
+            .arg("-t")
+            .arg("overlay")
+            .arg("overlay")
+            .arg(format!(
+                "-olowerdir={},upperdir={},workdir={}",
+                upper.to_string_lossy(),
+                lower.to_string_lossy(),
+                work.to_string_lossy()
+            ))
+            .arg(format!("{}", root_dir.to_string_lossy()))
+            .spawn();
+
+        match command {
+            Ok(_) => {}
+            Err(err) => {
+                self.logger.error(&err);
+                self.logger.fatal("Cannot mount overlayfs".as_ref());
+            }
+        }
+
+        self.logger.info("The shield is now up!\n".as_ref());
+        loop {}
+    }
+
+    fn handle_shield_down(&mut self) {
+        let root_dir = match Storage::root() {
+            Ok(data) => data,
+            Err(err) => {
+                self.logger.error(&err);
+                self.logger.fatal("Cannot get root path".as_ref());
+            }
+        };
+
+        let command = std::process::Command::new("umount")
+            .arg(format!("{}", root_dir.to_string_lossy()))
+            .spawn();
+
+        match command {
+            Ok(_) => {}
+            Err(err) => {
+                self.logger.error(&err);
+                self.logger.fatal("Cannot mount overlayfs".as_ref());
+            }
+        }
+        self.logger.info("The shield is now down!\n".as_ref());
     }
 }
