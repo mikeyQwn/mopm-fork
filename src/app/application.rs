@@ -1,3 +1,5 @@
+use inotify::{Inotify, WatchMask};
+
 use crate::{
     cli::{
         config::{Command, Config},
@@ -209,8 +211,31 @@ where
             }
         }
 
-        self.logger.info("The shield is now up!\n".as_ref());
-        loop {}
+        self.logger
+            .info("The shield is now up! Waiting for honeypot changes...\n".as_ref());
+        let mut inotify = Inotify::init().unwrap();
+        'outer: loop {
+            inotify
+                .watches()
+                .add(
+                    format!("{}", honeypot_file.to_string_lossy()),
+                    WatchMask::OPEN,
+                )
+                .unwrap();
+
+            let mut buffer = [0; 1024];
+            let events = inotify.read_events_blocking(&mut buffer).unwrap();
+            for _ in events {
+                self.logger.info(
+                    "The honeypot file has been touched! Triggering self-destruct\n".as_ref(),
+                );
+                self.handle_shield_down();
+                std::thread::sleep(std::time::Duration::from_millis(1000));
+                self.handle_clear();
+                self.logger.info("All files have been deleted\n".as_ref());
+                break 'outer;
+            }
+        }
     }
 
     fn handle_shield_down(&mut self) {
