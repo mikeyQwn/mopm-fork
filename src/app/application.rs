@@ -159,13 +159,12 @@ where
     }
 
     fn handle_shield_up(&mut self) {
-        if let Err(err) = Storage::create_dummies() {
+        if let Err(err) = Storage::create_dummy() {
             self.logger.error(&err);
-            self.logger
-                .fatal("Cannot create dummy directories".as_ref());
+            self.logger.fatal("Cannot create dummy directory".as_ref());
         }
 
-        let (upper, lower, work) = match Storage::dummies() {
+        let dummy = match Storage::dummy() {
             Ok(data) => data,
             Err(err) => {
                 self.logger.error(&err);
@@ -191,23 +190,20 @@ where
         };
 
         let command = std::process::Command::new("mount")
-            .arg("-t")
-            .arg("overlay")
-            .arg("overlay")
-            .arg(format!(
-                "-olowerdir={},upperdir={},workdir={}",
-                upper.to_string_lossy(),
-                lower.to_string_lossy(),
-                work.to_string_lossy()
-            ))
+            .arg("--bind")
+            .arg(format!("{}", dummy.to_string_lossy()))
             .arg(format!("{}", root_dir.to_string_lossy()))
-            .spawn();
+            .output();
 
         match command {
-            Ok(_) => {}
+            Ok(output) if output.status.success() => {}
+            Ok(output) => {
+                self.logger.info(format!("{}\n", output.status).as_ref());
+                self.logger.fatal("Cannot mount directory".as_ref());
+            }
             Err(err) => {
                 self.logger.error(&err);
-                self.logger.fatal("Cannot mount overlayfs".as_ref());
+                self.logger.fatal("Cannot mount directory".as_ref());
             }
         }
 

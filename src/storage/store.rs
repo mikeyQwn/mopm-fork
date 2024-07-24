@@ -56,31 +56,24 @@ impl Storage {
         Ok(())
     }
 
-    pub fn create_dummies() -> Result<(), StorageError> {
-        let (upper, lower, work) = Self::dummies()?;
-        let upper_file = Self::upper_file()?;
+    pub fn create_dummy() -> Result<(), StorageError> {
+        let dummy = Self::dummy()?;
+        let dummy_file = Self::upper_file()?;
 
-        if !upper.exists() {
-            create_dir(upper)?;
+        if !dummy.exists() {
+            create_dir(dummy)?;
         };
 
-        if !upper_file.exists() {
+        if !dummy_file.exists() {
             let mut password_file = std::fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .truncate(true)
-                .open(upper_file)
+                .open(dummy_file)
                 .map_err(StorageError::from)?;
             password_file.write(b"You are not supposed to see this. Get out.")?;
         }
 
-        if !lower.exists() {
-            create_dir(lower)?;
-        };
-
-        if !work.exists() {
-            create_dir(work)?;
-        };
         Ok(())
     }
 
@@ -125,16 +118,12 @@ impl Storage {
         Ok(data)
     }
 
-    pub fn dummies() -> Result<(PathBuf, PathBuf, PathBuf), StorageError> {
-        let upper = PathBuf::from_str("/tmp/mopm-dummy-upper")?;
-        let lower = PathBuf::from_str("/tmp/mopm-dummy-lower")?;
-        let work = PathBuf::from_str("/tmp/mopm-dummy-work")?;
-
-        Ok((upper, lower, work))
+    pub fn dummy() -> Result<PathBuf, StorageError> {
+        PathBuf::from_str("/tmp/mopm-dummy").map_err(StorageError::from)
     }
 
     pub fn upper_file() -> Result<PathBuf, StorageError> {
-        let mut upper = PathBuf::from_str("/tmp/mopm-dummy-upper")?;
+        let mut upper = Self::dummy()?;
         upper.push("not-a-honeypot.txt");
 
         Ok(upper)
